@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Výpočet ceny náhradního dílu</title>
+<style>
+:root{--main:#5F259F;--accent:#00B2A9;--bg:#f6f4fa;--card:#fff;--text:#22192e;--muted:#6b6478;--line:#e2dcec}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.45}
+header{background:var(--main);color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:5px solid var(--accent)}
+h1{margin:0;font-size:1.35rem;font-weight:600}
+.lang button{background:transparent;color:#fff;border:1px solid #fff9;padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit}
+.lang button.on{background:var(--accent);border-color:var(--accent);font-weight:600}
+main{max-width:980px;margin:0 auto;padding:20px;display:grid;gap:18px}
+.modes{display:grid;grid-template-columns:1fr 1fr;border:2px solid var(--main);border-radius:10px;overflow:hidden;background:#fff}
+.modes button{border:0;background:#fff;color:var(--main);padding:12px;font:inherit;font-weight:600;cursor:pointer}
+.modes button.on{background:var(--main);color:#fff}
+section,details{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+summary{cursor:pointer;font-size:1.05rem;font-weight:600;color:var(--main);list-style:none;display:flex;align-items:center;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"";width:8px;height:8px;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:rotate(-45deg);transition:transform .15s}
+details[open]>summary::before{transform:rotate(45deg)}
+details[open]>summary{margin-bottom:12px}
+h2{margin:0 0 12px;font-size:1.05rem;color:var(--main)}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:14px}
+.row:last-child{margin-bottom:0}
+label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:4px}
+input,select{width:100%;padding:9px 10px;font:inherit;border:1px solid var(--line);border-radius:6px;background:#fff}
+input:focus,select:focus,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#price{font-size:1.2rem;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--main);font-weight:600;background:#f1ebf8}
+tr.act td{background:#d9f4f2;font-weight:600}
+.wrap{overflow-x:auto}
+.res{background:var(--main);color:#fff;border-radius:10px;padding:18px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.res b{font-size:1.9rem}
+.res small{color:#d9c9ee}
+.steps td:last-child{font-weight:600;white-space:nowrap}
+.steps td:nth-child(2){color:var(--muted);text-align:left}
+.steps tr.total td{border-bottom:0;background:#d9f4f2;color:var(--text)}
+.steps tr.key td{background:#f1ebf8}
+.note{color:var(--muted);font-size:.85rem;margin-top:8px}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="t_title"></h1>
+  <div class="lang">
+    <button data-l="cs">Čeština</button><button data-l="en">English</button><button data-l="hu">Magyar</button>
+  </div>
+</header>
+<main>
+  <div class="modes">
+    <button id="m_cust" data-m="cust"></button><button id="m_sis" data-m="sis"></button>
+  </div>
+
+  <section>
+    <h2 id="t_input"></h2>
+    <div class="row">
+      <div><label id="t_list"></label><input id="price" type="number" min="0" step="0.01" value="1000"></div>
+      <div><label id="t_inCur"></label><select id="inCur"><option>USD</option><option>EUR</option></select></div>
+      <div><label id="t_disc"></label><input id="disc" type="number" min="0" max="100" step="0.1" value="15"></div>
+      <div><label id="t_fee"></label><input id="fee" type="number" step="0.01" value="1.03"></div>
+    </div>
+    <div class="row">
+      <div class="f-cust"><label id="t_outCur"></label><select id="outCur"><option>CZK</option><option>HUF</option><option>EUR</option></select></div>
+      <div class="f-sis hide"><label id="t_country"></label><select id="country"><option value="EUR">SK – EUR</option><option value="HUF">HU – HUF</option></select></div>
+      <div class="f-sis hide"><label id="t_sisM"></label><input id="sisM" type="number" step="0.1" value="6"></div>
+    </div>
+  </section>
+
+  <div class="res"><div><small id="t_final"></small><br><b id="final">–</b></div><div id="resNote"></div></div>
+
+  <details>
+    <summary id="t_calc"></summary>
+    <div class="wrap"><table class="steps"><tbody id="steps"></tbody></table></div>
+  </details>
+
+  <details class="f-cust">
+    <summary id="t_tiers"></summary>
+    <div class="wrap"><table>
+      <thead><tr><th id="th_range"></th><th id="th_mult"></th></tr></thead>
+      <tbody id="tiers"></tbody>
+    </table></div>
+    <p class="note" id="t_tierNote"></p>
+  </details>
+
+  <details>
+    <summary id="t_rates"></summary>
+    <div class="wrap"><table>
+      <thead><tr><th id="th_pair"></th><th id="th_rate"></th></tr></thead>
+      <tbody id="rates"></tbody>
+    </table></div>
+  </details>
+</main>
+
+<script>
+const TXT={
+cs:{title:"Výpočet ceny náhradního dílu",mCust:"Prodej zákazníkovi",mSis:"Prodej sesterské firmě",input:"Vstup",list:"Cena výrobce",inCur:"Měna ceny výrobce",outCur:"Měna zákaznické ceny",country:"Sesterská firma",sisM:"Marže sesterské firmy (%)",disc:"Sleva od výrobce (%)",fee:"Přirážka",final:"Cena pro zákazníka (bez DPH)",finalS:"Cena pro sesterskou firmu (bez DPH)",purch:"Nákupní cena",calc:"Postup výpočtu",tiers:"Cenová pásma (násobek podle nákupní ceny)",range:"Nákupní cena (po slevě a přirážce)",mult:"Násobek",tierNote:"Pásmo se určuje podle nákupní ceny (po slevě a přirážce) v měně ceny výrobce (EUR/USD). Zvýrazněný řádek je právě použit.",rates:"Směnné kurzy",pair:"Měnový pár",rate:"Kurz",
+s_list:"Cena výrobce",s_disc:"Po slevě",s_fee:"Po přirážce = nákupní cena",s_tier:"Po násobku pásma",s_rate:"Po přepočtu kurzem",s_marg:"Po marži sesterské firmy",s_cust:"Cena pro zákazníka (bez DPH)",s_sis:"Cena pro sesterskou firmu(bez DPH)",inv:"Zadejte platnou cenu.",more:"a více"},
+en:{title:"Spare part price calculation",mCust:"Sale to customer",mSis:"Sale to sister company",input:"Input",list:"Manufacturer price",inCur:"Manufacturer price currency",outCur:"Customer price currency",country:"Sister company",sisM:"Sister company margin (%)",disc:"Manufacturer discount (%)",fee:"Surcharge",final:"Customer price (excl. VAT)",finalS:"Price for sister company (excl. VAT)",purch:"Purchase price",calc:"Calculation steps",tiers:"Price tiers (multiplier by purchase price)",range:"Purchase price (after discount and surcharge)",mult:"Multiplier",tierNote:"The tier is chosen by the purchase price (after discount and surcharge) in the manufacturer price currency (EUR/USD). The highlighted row is the one in use.",rates:"Exchange rates",pair:"Currency pair",rate:"Rate",
+s_list:"Manufacturer price",s_disc:"After discount",s_fee:"After surcharge = purchase price",s_tier:"After tier multiplier",s_rate:"After exchange rate",s_marg:"After sister company margin",s_cust:"Customer price (excl. VAT)",s_sis:"Price for sister company (excl. VAT)",inv:"Enter a valid price.",more:"and above"},
+hu:{title:"Alkatrész árának kiszámítása",mCust:"Értékesítés vevőnek",mSis:"Értékesítés testvércégnek",input:"Bevitel",list:"Gyártói ár",inCur:"Gyártói ár pénzneme",outCur:"Vevői ár pénzneme",country:"Testvércég",sisM:"Testvércég árrése (%)",disc:"Gyártói kedvezmény (%)",fee:"Felár",final:"Vevői ár (ÁFA nélkül)",finalS:"Ár a testvércégnek (ÁFA nélkül)",purch:"Beszerzési ár",calc:"Számítás lépései",tiers:"Ársávok (szorzó a beszerzési ár szerint)",range:"Beszerzési ár (kedvezmény és felár után)",mult:"Szorzó",tierNote:"A sávot a beszerzési ár (kedvezmény és felár után) határozza meg a gyártói ár pénznemében (EUR/USD). A kiemelt sor az éppen használt.",rates:"Árfolyamok",pair:"Devizapár",rate:"Árfolyam",
+s_list:"Gyártói ár",s_disc:"Kedvezmény után",s_fee:"Felár után = beszerzési ár",s_tier:"Sávszorzó után",s_rate:"Árfolyammal átváltva",s_marg:"Testvércég árrése után",s_cust:"Vevői ár (ÁFA nélkül)",s_sis:"Ár a testvércégnek (ÁFA nélkül)",inv:"Adjon meg érvényes árat.",more:"felett"}
+};
+const TIERS=[{max:100,m:2.5,lo:0},{max:500,m:1.8,lo:101},{max:1500,m:1.65,lo:501},{max:2500,m:1.55,lo:1501},{max:Infinity,m:1.3,lo:2501}];
+const RATES={"EUR/CZK":28,"EUR/HUF":425,"USD/HUF":425,"USD/EUR":1,"USD/CZK":25};
+let lang="cs",mode="cust";try{lang=localStorage.getItem("lang")||"cs"}catch(e){}
+const $=id=>document.getElementById(id);
+const nf=(v,d=2)=>v.toLocaleString({cs:"cs-CZ",en:"en-GB",hu:"hu-HU"}[lang],{minimumFractionDigits:d,maximumFractionDigits:d});
+
+function buildRates(){
+  $("rates").innerHTML=Object.keys(RATES).map(k=>`<tr><td>${k}</td><td><input type="number" step="0.01" data-k="${k}" value="${RATES[k]}" style="max-width:140px;text-align:right"></td></tr>`).join("");
+  $("rates").querySelectorAll("input").forEach(i=>i.addEventListener("input",()=>{RATES[i.dataset.k]=parseFloat(i.value)||0;calc()}));
+}
+function calc(){
+  const t=TXT[lang],p=parseFloat($("price").value),d=parseFloat($("disc").value)||0,
+        ic=$("inCur").value,oc=mode==="cust"?$("outCur").value:$("country").value,
+        fee=parseFloat($("fee").value)||0,sm=parseFloat($("sisM").value)||0;
+  const rate=ic===oc?1:RATES[ic+"/"+oc];
+  $("tiers").innerHTML=TIERS.map((x,i)=>{const r=i===TIERS.length-1?`${x.lo} ${t.more}`:`${x.lo} – ${x.max}`;return `<tr data-i="${i}"><td>${r} ${ic}</td><td>× ${nf(x.m)}</td></tr>`}).join("");
+  $("t_final").textContent=mode==="cust"?t.final:t.finalS;
+  if(!(p>=0)||$("price").value===""){$("final").textContent="–";$("steps").innerHTML=`<tr><td colspan="3">${t.inv}</td></tr>`;$("resNote").textContent="";return}
+  const afterD=p*(1-d/100),buy=afterD*fee,dec=oc==="HUF"?0:2;
+  const base=`<tr><td>${t.s_list}</td><td></td><td>${nf(p)} ${ic}</td></tr>`+
+   `<tr><td>${t.s_disc}</td><td>${nf(p)} × (1 − ${nf(d,1)} %)</td><td>${nf(afterD)} ${ic}</td></tr>`+
+   `<tr class="key"><td>${t.s_fee}</td><td>${nf(afterD)} × ${nf(fee)}</td><td>${nf(buy)} ${ic}</td></tr>`;
+  let out;
+  if(mode==="cust"){
+    const i=TIERS.findIndex(x=>buy<=x.max),m=TIERS[i].m,a=buy*m,c=a*rate;
+    $("tiers").querySelector(`tr[data-i="${i}"]`).classList.add("act");
+    out=c;
+    $("steps").innerHTML=base+
+     `<tr><td>${t.s_tier}</td><td>${nf(buy)} × ${nf(m)}</td><td>${nf(a)} ${ic}</td></tr>`+
+     `<tr><td>${t.s_rate}</td><td>${nf(a)} × ${nf(rate)} (${ic}/${oc})</td><td>${nf(c)} ${oc}</td></tr>`+
+     `<tr class="total"><td>${t.s_cust}</td><td></td><td>${nf(c,dec)} ${oc}</td></tr>`;
+  }else{
+    const b=buy*rate,c=b*(1+sm/100);
+    out=c;
+    $("steps").innerHTML=base+
+     `<tr><td>${t.s_rate}</td><td>${nf(buy)} × ${nf(rate)} (${ic}/${oc})</td><td>${nf(b)} ${oc}</td></tr>`+
+     `<tr><td>${t.s_marg}</td><td>${nf(b)} × (1 + ${nf(sm,1)} %)</td><td>${nf(c)} ${oc}</td></tr>`+
+     `<tr class="total"><td>${t.s_sis}</td><td></td><td>${nf(c,dec)} ${oc}</td></tr>`;
+  }
+  $("final").textContent=`${nf(out,dec)} ${oc}`;
+  $("resNote").innerHTML=`<small>${t.purch}: ${nf(buy)} ${ic}</small>`;
+}
+function setMode(m){
+  mode=m;
+  document.querySelectorAll(".modes button").forEach(b=>b.classList.toggle("on",b.dataset.m===m));
+  document.querySelectorAll(".f-cust").forEach(e=>e.classList.toggle("hide",m!=="cust"));
+  document.querySelectorAll(".f-sis").forEach(e=>e.classList.toggle("hide",m!=="sis"));
+  calc();
+}
+function setLang(l){
+  lang=l;try{localStorage.setItem("lang",l)}catch(e){}
+  const t=TXT[l];document.documentElement.lang=l;document.title=t.title;
+  const map={title:"t_title",mCust:"m_cust",mSis:"m_sis",input:"t_input",list:"t_list",inCur:"t_inCur",outCur:"t_outCur",country:"t_country",sisM:"t_sisM",disc:"t_disc",fee:"t_fee",calc:"t_calc",tiers:"t_tiers",range:"th_range",mult:"th_mult",tierNote:"t_tierNote",rates:"t_rates",pair:"th_pair",rate:"th_rate"};
+  for(const k in map)$(map[k]).textContent=t[k];
+  document.querySelectorAll(".lang button").forEach(b=>b.classList.toggle("on",b.dataset.l===l));
+  calc();
+}
+document.querySelectorAll(".lang button").forEach(b=>b.addEventListener("click",()=>setLang(b.dataset.l)));
+document.querySelectorAll(".modes button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.m)));
+["price","inCur","outCur","country","disc","fee","sisM"].forEach(id=>$(id).addEventListener("input",calc));
+buildRates();setLang(lang);setMode("cust");
+</script>
+</body>
+</html>
